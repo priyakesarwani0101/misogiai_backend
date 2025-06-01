@@ -24,6 +24,7 @@ async function bootstrap() {
       'https://misogiai-dkka.onrender.com',
       'https://misogiai-frontend.onrender.com',
       'http://localhost:5173',
+      'http://localhost:3003',
     ],
     credentials: true,
   });
