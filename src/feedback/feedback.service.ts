@@ -10,6 +10,7 @@ import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { User } from '../users/entities/user.entity';
 import { Event } from '../events/entities/event.entity';
 import { FeedbackType } from '../common/enums/feedback-type.enum';
+import { EventsService } from 'src/events/events.service';
 
 @Injectable()
 export class FeedbackService {
@@ -18,6 +19,8 @@ export class FeedbackService {
     private readonly feedbackRepo: Repository<Feedback>,
     @InjectRepository(Event)
     private readonly eventRepo: Repository<Event>,
+
+    private readonly eventService: EventsService, // Assuming you have an EventsService to handle event logic
   ) {}
 
   async createFeedback(
@@ -25,7 +28,7 @@ export class FeedbackService {
     eventId: string,
     dto: CreateFeedbackDto,
   ): Promise<Feedback> {
-    const event = await this.eventRepo.findOne({ where: { id: eventId } });
+    const event = await this.eventService.findOne(eventId);
     if (!event) throw new NotFoundException('Event not found');
 
     if (event.status !== 'LIVE') {

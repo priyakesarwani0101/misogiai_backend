@@ -16,7 +16,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
 
-@Controller('events/:eventId/feedback')
+@Controller('feedback/:eventId/')
 export class FeedbackController {
   constructor(private readonly feedbackService: FeedbackService) {}
 
