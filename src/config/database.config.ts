@@ -11,7 +11,4 @@ export const databaseConfig: TypeOrmModuleOptions = {
   autoLoadEntities: true,
   synchronize: true,
   logging: process.env.NODE_ENV !== 'production',
-  ssl: {
-    rejectUnauthorized: process.env.DB_SSL === 'true',
-  },
 };
