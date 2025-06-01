@@ -10,6 +10,7 @@ import { Event } from '../events/entities/event.entity';
 import { User } from '../users/entities/user.entity';
 import { UserRole } from 'src/common/enums/user-role.enum';
 import { EventsService } from 'src/events/events.service';
+import { Checkin } from 'src/checkins/entities/checkin.entity';
 
 @Injectable()
 export class RsvpsService {
@@ -78,13 +79,87 @@ export class RsvpsService {
   }
 
   /**
-   * Get all Rsvp rows for a user (including pending, confirmed, or canceled).
+   * Return all Rsvp rows for userId, each annotated with checkedIn:boolean.
    */
-  async getInvitationsForUser(userId: string): Promise<Rsvp[]> {
-    return this.rsvpRepo.find({
-      where: { attendee: { id: userId } },
-      relations: ['event'],
-      order: { invitedAt: 'DESC' },
+  async getInvitationsForUser(userId: string): Promise<
+    Array<{
+      rsvpId: string;
+      status: 'invited' | 'accepted' | 'cancelled';
+      invitedAt: Date;
+      rsvpDate: Date | null;
+      checkedIn: boolean;
+      event: {
+        id: string;
+        title: string;
+        startDateTime: Date;
+        location: string | null;
+        isVirtual: boolean;
+        rsvpDeadline: Date;
+        maxAttendees: number;
+      };
+    }>
+  > {
+    // Use a query builder to left‐join Checkin on (rsvp.eventId, rsvp.attendeeId)
+    const rows = await this.rsvpRepo
+      .createQueryBuilder('r')
+      .leftJoinAndSelect('r.event', 'e')
+      .leftJoin(
+        Checkin,
+        'c',
+        'c."eventId" = r."eventId" AND c."userId" = r."attendeeId"',
+      )
+      .where('r."attendeeId" = :userId', { userId })
+      .select([
+        'r.id',
+        'r.confirmed',
+        'r.cancelled',
+        'r.invitedAt',
+        'r.rsvpDate',
+        'e.id',
+        'e.title',
+        'e.startDateTime',
+        'e.location',
+        'e.isVirtual',
+        'e.rsvpDeadline',
+        'e.maxAttendees',
+        'e.checkInEnabled',
+        'e.description',
+        'c.id', // used to determine if a checkin row exists
+      ])
+      .orderBy('r.invitedAt', 'DESC')
+      .getRawMany();
+
+    // Map each raw row to our DTO with checkedIn = (c.id != null)
+    return rows.map((r) => {
+      let status: 'invited' | 'accepted' | 'cancelled';
+      if (r.r_cancelled) {
+        status = 'cancelled';
+      } else if (r.r_confirmed) {
+        status = 'accepted';
+      } else {
+        status = 'invited';
+      }
+
+      return {
+        rsvpId: r.r_id,
+        status,
+        confirmed: r.r_confirmed,
+        cancelled: r.r_cancelled,
+        invitedAt: r.r_invitedAt,
+        rsvpDate: r.r_rsvpDate,
+        checkedIn: r.c_id !== null,
+        event: {
+          id: r.e_id,
+          title: r.e_title,
+          startDateTime: r.e_startDateTime,
+          location: r.e_location,
+          isVirtual: r.e_isVirtual,
+          rsvpDeadline: r.e_rsvpDeadline,
+          maxAttendees: r.e_maxAttendees,
+          checkInEnabled: r.e_checkInEnabled,
+          description: r.e_description,
+        },
+      };
     });
   }
 
@@ -136,10 +211,10 @@ export class RsvpsService {
    * - If they never confirmed (confirmed=false), delete the row entirely.
    * - If they had confirmed (confirmed=true, cancelled=false), set cancelled=true.
    */
-  async cancelInvitation(rsvpId: string, userId: string): Promise<void> {
+  async cancelInvitation(rsvpId: string, userId: string): Promise<Rsvp> {
     const rsvp = await this.rsvpRepo.findOne({
       where: { id: rsvpId },
-      relations: ['attendee'],
+      relations: ['event', 'attendee'],
     });
     if (!rsvp) {
       throw new NotFoundException('Invitation not found');
@@ -147,18 +222,21 @@ export class RsvpsService {
     if (rsvp.attendee.id !== userId) {
       throw new BadRequestException('This invitation is not for you.');
     }
-
-    if (!rsvp.confirmed) {
-      // They never accepted—so just remove the invite
-      await this.rsvpRepo.delete(rsvpId);
-    } else if (rsvp.confirmed && !rsvp.cancelled) {
-      // They had already confirmed—so mark as cancelled
-      rsvp.cancelled = true;
-      await this.rsvpRepo.save(rsvp);
-    } else {
-      // If they were already cancelled, do nothing or throw
-      throw new BadRequestException('You have already canceled your RSVP.');
+    if (rsvp.confirmed && !rsvp.cancelled) {
+      throw new BadRequestException('You have already confirmed your RSVP.');
     }
+
+    // Check RSVP deadline
+    const now = new Date();
+    if (now > rsvp.event.rsvpDeadline) {
+      throw new BadRequestException('RSVP deadline has passed.');
+    }
+
+    // They had already confirmed—so mark as cancelled
+    rsvp.confirmed = false;
+    rsvp.cancelled = true;
+    rsvp.rsvpDate = new Date();
+    return this.rsvpRepo.save(rsvp);
   }
 
   /**

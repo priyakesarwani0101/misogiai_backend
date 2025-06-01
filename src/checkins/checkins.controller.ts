@@ -15,7 +15,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { CreateCheckinDto } from './dto/create-checkin.dto';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 
-@Controller('events/:eventId/checkins')
+@Controller('checkin/:eventId')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class CheckinsController {
   constructor(private readonly checkinsService: CheckinsService) {}

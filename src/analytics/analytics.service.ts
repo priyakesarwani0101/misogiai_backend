@@ -19,45 +19,47 @@ export class AnalyticsService {
     @InjectRepository(Feedback)
     private readonly feedbackRepo: Repository<Feedback>,
   ) {}
-
   async getSummary(eventId: string) {
+    // 1. Verify event exists
     const event = await this.eventRepo.findOne({ where: { id: eventId } });
     if (!event) throw new NotFoundException('Event not found');
 
-    // 1. Total RSVPs (confirmed)
+    // 2. Total RSVPs (confirmed = true)
     const totalRsvps = await this.rsvpRepo.count({
       where: { event: { id: eventId }, confirmed: true },
     });
 
-    // 2. Total Check-Ins
+    // 3. Total Check-Ins
     const totalCheckIns = await this.checkinRepo.count({
       where: { event: { id: eventId } },
     });
 
-    // 3. Feedback volume over time (aggregate by minute)
-    //   Query Feedback createdAt counts grouped by minute offset from event start
+    // 4. Feedback volume over time (group by minute)
+    //    Fix: remove "as minute" inside the select; let the alias parameter handle it.
     const feedbackVolume = await this.feedbackRepo
       .createQueryBuilder('fb')
-      .select("date_trunc('minute', fb.createdAt) as minute", 'minute')
+      .select('date_trunc(\'minute\', fb."createdAt")', 'minute')
       .addSelect('COUNT(*)', 'count')
-      .where('fb.eventId = :eid', { eid: eventId })
+      .where('fb."eventId" = :eid', { eid: eventId })
       .groupBy('minute')
       .orderBy('minute', 'ASC')
       .getRawMany();
 
-    // 4. Top 3 Emoji Reactions
+    // 5. Top 3 Emoji Reactions
     const topEmojisRaw = await this.feedbackRepo
       .createQueryBuilder('fb')
-      .select('fb.content', 'emoji')
+      .select('fb."content"', 'emoji')
       .addSelect('COUNT(*)', 'count')
-      .where("fb.type = 'EMOJI' AND fb.eventId = :eid", { eid: eventId })
-      .groupBy('fb.content')
+      .where('fb."type" = :type AND fb."eventId" = :eid', {
+        type: FeedbackType.EMOJI,
+        eid: eventId,
+      })
+      .groupBy('fb."content"')
       .orderBy('count', 'DESC')
       .limit(3)
       .getRawMany();
 
-    // 5. Common feedback keywords (simple approach: split text, count frequencies)
-    // Note: PostgreSQL full‐text or simple splitting in JS after fetch
+    // 6. Common feedback keywords (simple JS‐side extraction)
     const allTextFeedbacks = await this.feedbackRepo.find({
       where: { event: { id: eventId }, type: FeedbackType.TEXT },
       select: ['content'],
@@ -70,8 +72,8 @@ export class AnalyticsService {
     return {
       totalRsvps,
       totalCheckIns,
-      feedbackVolume, // [ { minute: '2025-05-30 14:22:00', count: '5' }, … ]
-      topEmojis: topEmojisRaw, // [ { emoji: '👍', count: '12' }, … ]
+      feedbackVolume, // e.g. [ { minute: '2025-05-30 14:22:00', count: '5' }, … ]
+      topEmojis: topEmojisRaw, // e.g. [ { emoji: '👍', count: '12' }, … ]
       topKeywords: keywordCounts, // e.g. [ { word: 'great', count: 5 }, … ]
     };
   }

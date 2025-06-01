@@ -11,6 +11,7 @@ import {
   UseGuards,
   Request,
   ForbiddenException,
+  Put,
 } from '@nestjs/common';
 import { RsvpsService } from './rsvps.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -56,7 +57,7 @@ export class RsvpsController {
    * PATCH /rsvps/:id/accept
    */
 
-  @Patch(':id/accept')
+  @Put(':id/accept')
   async acceptInvite(@Param('id') id: string, @Request() req) {
     const userId = req.user.id;
     return this.rsvpsService.acceptInvitation(id, userId);
@@ -67,7 +68,7 @@ export class RsvpsController {
    * DELETE /rsvps/:id
    */
 
-  @Delete(':id')
+  @Put(':id/cancel')
   async cancelInvite(@Param('id') id: string, @Request() req) {
     const userId = req.user.id;
     return this.rsvpsService.cancelInvitation(id, userId);

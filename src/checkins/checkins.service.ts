@@ -9,6 +9,7 @@ import { Checkin } from './entities/checkin.entity';
 import { Event } from '../events/entities/event.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateCheckinDto } from './dto/create-checkin.dto';
+import { EventsService } from 'src/events/events.service';
 
 @Injectable()
 export class CheckinsService {
@@ -17,10 +18,12 @@ export class CheckinsService {
     private readonly checkinRepo: Repository<Checkin>,
     @InjectRepository(Event)
     private readonly eventRepo: Repository<Event>,
+
+    private readonly eventsService: EventsService, // Assuming you have an EventsService to handle event logic
   ) {}
 
   async createCheckin(user: User, eventId: string): Promise<Checkin> {
-    const event = await this.eventRepo.findOne({ where: { id: eventId } });
+    const event = await this.eventsService.findById(eventId);
     if (!event) throw new NotFoundException('Event not found');
 
     // Check if event is LIVE or within allowed window

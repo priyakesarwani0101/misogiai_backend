@@ -47,6 +47,9 @@ export class Event {
   })
   status: EventStatus; // Scheduled / Live / Closed
 
+  @Column({ type: 'boolean', default: false })
+  checkInEnabled: boolean;
+
   @ManyToOne(() => User, (user) => user.hostedEvents, { onDelete: 'CASCADE' })
   host: User;
 

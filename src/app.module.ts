@@ -10,6 +10,7 @@ import { CheckinsModule } from './checkins/checkins.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { MailModule } from './mail/mail.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { MailModule } from './mail/mail.module';
     }),
     TypeOrmModule.forRoot(databaseConfig),
     TypeOrmModule.forFeature([]),
+    ScheduleModule.forRoot(),
     AuthModule,
     UsersModule,
     EventsModule,
